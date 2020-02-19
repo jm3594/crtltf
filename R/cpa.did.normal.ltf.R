@@ -1,13 +1,16 @@
-#' Power calculations for difference-in-difference cluster randomized trials accounting for loss to and gain at follow-up, continuous outcome
+#' Power calculations for difference-in-difference cluster randomized trials, continuous outcome
 #'
 #' Compute the power of a difference-in-difference cluster randomized trial design with a continuous outcome,
-#' accounting for potential loss to or gain at follow-up, or determine parameters to obtain a target power.
+#' or determine parameters to obtain a target power.
 #'
 #' Exactly one of \code{alpha}, \code{power}, \code{nclusters}, \code{nsubjects},
 #'   \code{d}, \code{icc}, \code{rho_c}, \code{rho_s}, and \code{vart}
 #'   must be passed as \code{NA}. Note that \code{alpha} and\code{power}
 #'   have non-\code{NA} defaults, so if those are the parameters of
 #'   interest they must be explicitly passed as \code{NA}.
+#'
+#' If \code{nsubjects} is a vector the values, \code{nclusters} will be recalculated
+#'    using the values in \code{nsubjects}.
 #'
 #' @section Note:
 #'   This function was inspired by work from Stephane Champely (pwr.t.test) and
@@ -17,34 +20,29 @@
 #'   invalid arguments are given.
 #'
 #' @section Authors:
-#' Jonathan Moyer (\email{jon.moyer@@gmail.com})
+#' @section Authors:
+#' Jonathan Moyer (\email{jon.moyer@@gmail.com}), Ken Kleinman (\email{ken.kleinman@@gmail.com})
 #'
 #' @param alpha The level of significance of the test, the probability of a
 #'   Type I error.
 #' @param power The power of the test, 1 minus the probability of a Type II
 #'   error.
 #' @param nclusters The number of clusters per condition at baseline. It must be greater than 1.
-#' @param nsubjects The number of subjects per cluster at baseline.
+#' @param nsubjects The mean of the cluster sizes, or a vector of cluster sizes for one arm.
 #' @param d The difference in mean change between conditions (i.e. "difference-in-difference").
 #' @param icc The intraclass correlation.
 #' @param rho_c The correlation between baseline and post-test outcomes at the
 #'   cluster level. This value can be used in both cross-sectional and cohort
 #'   designs. If this quantity is unknown, a value of 0 is a conservative estimate.
 #' @param rho_s The correlation between baseline and post-test outcomes at the
-#'   subject level assuming the a cohort design with no loss or gain to follow-up. Entering a value
-#'   of 0 for this parameter is equivalent to a cross-sectional design and automatically sets \code{ltf_0}, \code{ltf_1},
-#'   \code{gtf_0}, and \code{gtf_1} all to 1.
+#'   subject level. This should be used for a cohort design or a mixture of cohort
+#'   and cross-sectional designs. In a purely cross-sectional design (baseline subjects
+#'   are completely different from post-test subjects), this value should be 0.
 #' @param vart The total variation of the outcome (the sum of within- and between-cluster variation).
-#' @param ltf A length 2 vector indicating the proportion lost to follow-up per cluster in terms of \code{nsubjects}
-#'   in the control and treatment arms. The first element corresponds to the proportion lost in the control
-#'   arm, while the second element correponds to the proportion lost in the treatment arm Entering a scalar
-#'   for \code{ltf} will set both elements of the vector to that value. If \code{rho_s} is 0 then both elements
-#'   will be set to 1.
-#' @param gtf A length 2 vector indicating the proportion gained at follow-up per cluster in terms of \code{nsubjects}
-#'   in the control and treatment arms. The first element corresponds to the proportion gained in the control
-#'   group, while the second element correponds to the proportion gained in the treatment group. By default, \code{gtf}
-#'   is set to \code{ltf}. Entering a scalar for \code{gtf} will set both elements of the vector to that value.
-#'   If \code{rho_s} is 0 then both elements will be set to 1.
+#' @param ltf_0 The fraction lost to follow-up in the control group.
+#' @param ltf_1 The fraction lost to follow-up in the treatment group.
+#' @param gtf_0 The fraction gained to follow-up in the control group.
+#' @param gtf_1 The fraction gained to follow-up in the treatment group.
 #' @param tol Numerical tolerance used in root finding. The default provides
 #'   at least four significant digits.
 #' @return The computed argument.
@@ -53,7 +51,8 @@
 #' # power = 0.80, nsubjects = 20, d = 0.50 units, icc = 0.05, rho_c = 0.50, rho_s = 0.70,
 #' # and vart = 1 square unit if 50 percent of subjects in each cluster are lost to follow-up
 #' # and replaced.
-#' cpa.did.normal.ltf(nsubjects = 100 , d = 0.5, icc = 0.05, rho_c = 0.50, rho_s = 0.70, vart = 1,ltf=0.5)
+#' cpa.did.normal.ltf(nsubjects = 100 , d = 0.5, icc = 0.05, rho_c = 0.50, rho_s = 0.70, vart = 1,
+#'                    ltf_0=0.5,ltf_1=0.5,gtf_0=0.5,gtf_1=0.5)
 #' #
 #' # The result, nclusters = 8.099772, suggests 9 clusters per condition should be used.
 #'
@@ -65,37 +64,22 @@
 #'
 #' @export
 #'
+#'
 
-cpa.did.normal.ltf <- function(alpha = 0.05, power = 0.80, nclusters = NA,
+crtpwr.2meanD.ltf <- function(alpha = 0.05, power = 0.80, nclusters = NA,
                               nsubjects = NA, d = NA, icc = NA,
                               rho_c = NA, rho_s = NA, vart = NA,
-                              ltf = c(0,0), gtf = ltf,
+                              ltf_0 = 0, ltf_1 = 0,
+                              gtf_0 = 0, gtf_1 = 0,
                               tol = .Machine$double.eps^0.25){
+
+  # if nsubjects is a vector,
+  if(length(nsubjects) > 1){
+    nclusters <- length(nsubjects)
+  }
 
   if(!is.na(nclusters) && nclusters <= 1) {
     stop("'nclusters' must be greater than 1.")
-  }
-
-  if(!is.na(nsubjects) && nsubjects <= 1) {
-    stop("'nsubjects' must be greater than 1.")
-  }
-
-  # rho_s = 0 corresponds to a cross-sectional design in which ltfs and gtfs equal 1
-  if(!is.na(rho_s) && rho_s == 0) {
-    ltf <- gtf <- c(1,1)
-  }
-
-  if(length(ltf) > 2 | length(gtf) > 2){
-    stop("'ltf' and 'gtf' cannot contain have length greater than 2.")
-  }
-
-  if(length(ltf) == 1){
-    ltf <- c(ltf,ltf)
-  }
-
-  if(length(gtf) == 1){
-    gtf <- c(gtf,gtf)
-    gtf <- c(gtf,gtf)
   }
 
   # list of needed inputs
@@ -120,10 +104,8 @@ cpa.did.normal.ltf <- function(alpha = 0.05, power = 0.80, nclusters = NA,
     vars <- (1-icc)*rho_s*vart
     varst <- (1-icc)*(1-rho_s)*vart
 
-    # ltf[1], gtf[1] are loss, gain to follow-up in control arm
-    # ltf[2], gtf[2] are loss, gain to follow-up in treatment arm
-    eta <- (1-ltf[1])/(1-ltf[1]+gtf[1]) + (1-ltf[2])/(1-ltf[2]+gtf[2]) - 1
-    rho_s_star <- rho_s - 0.25*( 1/(1-ltf[1]+gtf[1]) + 1/(1-ltf[2]+gtf[2]) - 2*(eta*vars+varst)/(vars+varst) )
+    eta <- (1-ltf_0)/(1 - ltf_0 + gtf_0) + (1-ltf_1)/(1 - ltf_1 + gtf_1) - 1
+    rho_s_star <- rho_s - 0.25*( 1/(1-ltf_0+gtf_0) + 1/(1-ltf_1+gtf_1) - 2*(eta*vars+varst)/(vars+varst) )
 
     vardid <- 4*( varct/nclusters + (1-rho_s_star)*(vars+varst)/(nclusters*nsubjects) )
 
