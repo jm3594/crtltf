@@ -66,7 +66,7 @@
 #'
 #'
 
-crtpwr.2meanD.ltf <- function(alpha = 0.05, power = 0.80, nclusters = NA,
+cpa.did.normal.ltf <- function(alpha = 0.05, power = 0.80, nclusters = NA,
                               nsubjects = NA, d = NA, icc = NA,
                               rho_c = NA, rho_s = NA, vart = NA,
                               ltf_0 = 0, ltf_1 = 0,
