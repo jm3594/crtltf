@@ -1,0 +1,14 @@
+Package: crtltf
+Type: Package
+Title: Power Analysis Tools for Cluster Randomized Trials with Loss to Followup
+Version: 0.1.0
+Authors@R: person("Jonathan", "Moyer", email = "jon.moyer@gmail.com",
+    role = c("aut", "cre"))
+Maintainer: Jonathan Moyer <jon.moyer@gmail.com>
+Description: Power analysis tools for cluster randomized trials with loss to followup.
+    Includes functions for calculating power for difference-in-difference trials
+    with loss to follow up, as well as a variety of longitudinal designs. 
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.0.2
